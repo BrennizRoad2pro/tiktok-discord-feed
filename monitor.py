@@ -9,6 +9,8 @@ PROFILE_URL = "https://www.tiktok.com/@brennizfps"
 STATE_FILE = Path("data/seen.json")
 WEBHOOK = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
 
+TARGET_VIDEO_ID = "7711815699815025927"
+
 
 def get_videos():
     from yt_dlp import YoutubeDL
@@ -27,10 +29,22 @@ def get_videos():
     if not info:
         raise RuntimeError("Não foi possível acessar o perfil do TikTok.")
 
-    return [
+    videos = [
         video for video in (info.get("entries") or [])
         if video and video.get("id")
     ]
+
+    print("VÍDEOS ENCONTRADOS:", len(videos))
+    print("IDs RECEBIDOS:", [str(v["id"]) for v in videos])
+
+    target_found = any(
+        str(v["id"]) == TARGET_VIDEO_ID for v in videos
+    )
+
+    print("VÍDEO QUE ESTAMOS INVESTIGANDO:", 
+          "ENCONTRADO" if target_found else "NÃO ENCONTRADO")
+
+    return videos
 
 
 def get_video_url(video):
@@ -88,9 +102,7 @@ def send_notification(video):
 
 def main():
     if not WEBHOOK:
-        raise RuntimeError(
-            "Configure o segredo DISCORD_WEBHOOK_URL no GitHub."
-        )
+        raise RuntimeError("Segredo DISCORD_WEBHOOK_URL não configurado.")
 
     videos = get_videos()
 
@@ -105,20 +117,24 @@ def main():
             json.dumps(ids, indent=2),
             encoding="utf-8",
         )
-        print("Histórico inicial criado. Vídeos antigos não serão enviados.")
+        print("Histórico inicial criado.")
         return
 
     seen = set(json.loads(STATE_FILE.read_text(encoding="utf-8")))
+
+    print("IDs JÁ REGISTRADOS:", sorted(seen))
 
     new_videos = [
         video for video in reversed(videos)
         if str(video["id"]) not in seen
     ]
 
+    print("NOVOS VÍDEOS:", [str(v["id"]) for v in new_videos])
+
     for video in new_videos:
         send_notification(video)
         seen.add(str(video["id"]))
-        print("Notificação enviada:", video["id"])
+        print("NOTIFICAÇÃO ENVIADA:", video["id"])
 
     recent_ids = [str(video["id"]) for video in videos]
     history = recent_ids + [
@@ -131,7 +147,7 @@ def main():
         encoding="utf-8",
     )
 
-    print("Verificação concluída.")
+    print("DIAGNÓSTICO CONCLUÍDO.")
 
 
 if __name__ == "__main__":
@@ -140,4 +156,4 @@ if __name__ == "__main__":
     except Exception as error:
         print("ERRO:", error, file=sys.stderr)
         sys.exit(1)
-      
+        
